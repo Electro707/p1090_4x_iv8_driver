@@ -1,7 +1,7 @@
 # P1090 - IV-8 Driver, 4x
->> PCBs (both), Rev 1
->> Firmware, Rev 1A (wip)
->> Enclosure, Rev 1
+\> PCBs (both), Rev 1
+\> Firmware, Rev 1A (wip)
+\> Enclosure, Rev 1
 
 This project is a driver for 4xIV-8 VFD Tubes.
 
