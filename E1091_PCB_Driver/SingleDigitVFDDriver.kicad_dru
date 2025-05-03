@@ -1,0 +1,4 @@
+(version 1)
+(rule HV
+   (constraint clearance (min 0.1mm))
+   (condition "A.memberOfFootprint('Connector_USB:USB_C_Receptacle_GCT_USB4085')"))
