@@ -1,0 +1,216 @@
+= F1093 - Large 7-Seg Display Firmware
+rev 1-dev
+
+:sectnums:
+
+== Purpose
+The purpose of this document is to describe the F1093 firmware.
+
+== Development Information
+
+=== Toolchain
+The following tools and libraries are used to build this library:
+
+[%autowidth]
+|===
+|Type|Name|Revision
+
+|IDE
+|Arduino IDE
+|2.3.2
+
+|Arduino Board
+|esp32 by Espressif
+|3.2.0
+|===
+
+=== Target
+This firmware is only designed to be ran on an ESP32 on an E1041 PCBA.
+
+== Functional Description
+The F1093 firmware controls up 4x IV-8 Vacuum Fluorescent displays.
+
+This firmware attempts to connect to a WIFI network on startup. The WIFI SSID and password are initially defined in a header file `wifiDefault.h`.
+
+=== Display Modes
+This firmware has the following run-time modes for the display:
+
+* *"off"*: The displays are disabled, nothing is displayed
+* *"numb"*: Shows a static number on the display. Useful for host updated numeric display
+* *"time"*: Shows the current time based off the timezone set.
+
+On startup the firmware defaults to "time"
+
+=== NVM
+
+This firmware stores some parameters in non-volatile memory (nvm). The esp32-arduino's `EEPROM` is used, handling data storage and integrity.
+The following table describes what is stored.
+
+[cols="1,1,1,3"]
+|===
+|Offset|Length|Type|Description
+
+|0
+|1
+|byte
+|NVM magic to see if something is written. Should be 0x5A
+
+|1
+|32
+|str
+|WIFI SSID to connect to
+
+|33
+|32
+|str
+|WIFI password to connect to
+
+|===
+
+=== Communication
+This firmware can be communicated with over the following interfaces:
+
+* Serial over USB, 115200 baud, 8N1
+* TCP over Wifi, port 23
+
+This firmware can handle both connections simultaneously.
+
+All command frames sent to/from the device are in ASCII text mode, with either carriage-return (\r) or line-feed (\n) ending per frame.
+
+==== Wifi
+This firmware handles being connected over Telnet directly, allowing to connect to this firmware over the built-in `telnet` commands to many UNIX systems.
+
+The following telnet commands are handled, some of which are automatically sent when starting a telnet session:
+
+* DO
+* WILL
+* Interrupt Process, including waiting for timing-mark to responds with a new line and flush the internal receive buffer
+
+This firmware also implements a "exit" command to close a Telnet connection.
+
+This firmware set it's hostname to `esp32-f1093`.
+
+==== Debug UART
+
+A seperate debug UART exists, only accessible on the board over the tag-connect header. This is used for this firmware and ESP32's internal debugging.
+
+If the C define `DEBUG_ENABLED` is set in `common.h`, all debug messages are passed through this interface.
+
+
+[page-layout=landscape]
+<<<
+
+
+== Commands
+The commands are mostly structured as verb-noun system; the verb dictates the action, and noun is what to apply the verb to. For example "get mode" requests to "get" the "mode".
+The verb and noun are space delimited. Any argument(s) to the command are also space delimited.
+
+If a command doesn't sent back a return value,
+If a return value is not specified for a command, an acknowledgment (ACK) is sent back as the string "ok".
+Any not-acknowledgments (NACK) are sent as "error: X", where X is a human description of the error. Any command can sent a NACK if the command failed to execute.
+
+The following table list all commands supported.
+
+// [%autowidth]
+[cols="1,2,5,5,6"]
+|===
+|Verb|Noun|Arguments|Return|Desc
+
+|ping
+|
+|
+|pong!
+|ping/pong. Useful for checking if the firmware is functional
+
+.3+|set
+|mode
+|[str], mode
+|
+|Set the new display mode, which is the same string as described in <<Display Modes>>
+
+|n
+|[int], The number to display to in "numb" mode
+|ACK only if in "numb" mode
+|
+
+//|timezone
+//|The timezone as the TZ identifier
+//|ACK
+//|
+
+// |time
+// |Either the current time in the format "HH:MM:SS", or "auto" to automatically fetch the time from the internet
+// |
+// |
+
+|uartBaud
+|[int], The new baud rate
+|
+|Switches the main UART baud rate
+
+.5+|get
+|version
+|
+|The firmware version
+|
+
+|mode
+|
+|The current mode
+|
+
+|n
+|
+|The current displayed number
+|
+
+
+// |timezone
+// |
+// |The timezone as a TZ identifier
+// |
+
+|time
+|
+|The current time, in the set timezone
+|
+
+|ip
+|
+|The current IP address, or "none" if not connected to WiFi
+|
+
+.4+|update
+|begin
+|The firmware size in bytes
+|
+|Starts a firmware update
+
+|cont
+|The number of bytes to send, then the raw bytes after reception of the first ACK
+|ACK, followed by another ACK after raw bytes received
+|When this command is received with the number of bytes to send, an ACK is sent. The firmware then expects
+ that many bytes (not ASCII) to be received, in which another ACK will be sent after all expected bytes are received
+
+|end
+|
+|
+|Finishes the firmware update process
+
+|cancel
+|
+|
+|Cancels any on-going firmware update process
+
+|exit
+|
+|
+|
+|In Telnet mode, this command sends the required Telnet commands to disconnect.
+
+|reboot
+|
+|
+|
+|Restarts the ESP32
+|===
