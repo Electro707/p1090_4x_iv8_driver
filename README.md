@@ -16,6 +16,11 @@ This project is a driver for 4xIV-8 VFD Tubes.
     - C1095: Top Enclosure
 - `release`: Latest exported build files, includes Schematic, BOM, Gerber, and STL files
 
+# Firmware Doc
+
+The document for the firmware can be found over at [https://electro707.com/documentation/Projects/F1093_docs/](https://electro707.com/documentation/Projects/F1093_docs/)
+    
+
 # Known Issues
 - The op-amp chosen cannot drive all 4 filaments of the IV-8 VFD tubes
     - ^ Temporary fix is to connect the side of the potentiometer going to the op-amp to 5v directly. The op-amp then (coincidentally) current-limits the output when the pot is at it's minimum position, enough to light up the tubes.
@@ -24,9 +29,8 @@ This project is a driver for 4xIV-8 VFD Tubes.
 
 # todo:
 - Buy or 3D print light-pipes for better LED-to-IV8 conductance
-- Add more firmware features
 - Test out better op-amp for filament driver
-    
+
 # License
 This project is licensed under [GPLv3](LICENSE.md)**
 
