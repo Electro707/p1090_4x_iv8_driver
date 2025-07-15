@@ -46,9 +46,16 @@ typedef enum{
     DISPLAY_MODE_TIME,
 }dispMode_e;
 
+typedef enum{
+    TIME_FORMAT_24HR,
+    TIME_FORMAT_12HR,
+    TIME_FORMAT_METRIC
+}timeFormat_e;
+
 /********** Exposed main functions and variables **********/
 
 extern dispMode_e dispMode;
+extern timeFormat_e timeFormat;
 extern void setDisplayMode(dispMode_e newMode);
 extern void displayNumber(uint n);
 

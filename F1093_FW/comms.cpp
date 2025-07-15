@@ -204,6 +204,25 @@ void ParserHandler::subcommandSet(char *token){
 
         txAck();
     }
+    else if(!strcmp(token, "timeFormat")){
+        MACRO_GET_NEXTARG("missing arg1");
+
+        if(!strcmp(token, "24hr")){
+            timeFormat = TIME_FORMAT_24HR;
+        }
+        else if(!strcmp(token, "12hr")){
+            timeFormat = TIME_FORMAT_12HR;
+        }
+        else if(!strcmp(token, "metric")){
+            timeFormat = TIME_FORMAT_METRIC;
+        }
+        else{
+            txNack("invalid mode");
+            return;
+        }
+
+        txAck();
+    }
     else if(!strcmp(token, "n")){
         MACRO_GET_NEXTARG("missing arg1");
         // only allow in NUMB mode
@@ -248,6 +267,22 @@ void ParserHandler::subcommandGet(char *token){
                 break;
             case DISPLAY_MODE_TIME:
                 printHandler->println("time");
+                break;
+            default:
+                printHandler->println("Mode not defined");
+                break;
+        }
+    }
+    else if(!strcmp(token, "timeFormat")){
+        switch(timeFormat){
+            case TIME_FORMAT_24HR:
+                printHandler->println("24hr");
+                break;
+            case TIME_FORMAT_12HR:
+                printHandler->println("12hr");
+                break;
+            case TIME_FORMAT_METRIC:
+                printHandler->println("metric");
                 break;
             default:
                 printHandler->println("Mode not defined");

@@ -29,6 +29,9 @@ class Update:
         self.ser.flush()
         self.ser.baudrate = newBaud
 
+    def setTimeMode(self, newMode: int):
+        self._writeSerAck(f'set mode {newMode:s}')
+
     def reset(self):
         self._writeSer('reboot')
 
@@ -93,7 +96,7 @@ class Update:
         r = self.ser.read_until()
         r = r.decode().strip()
         self.log.debug(f"<- {r}")
-        time.sleep(0.1)
+        # time.sleep(0.1)
         return r
 
 
@@ -107,6 +110,9 @@ def main():
     if not u.checkPing():
         print("Device did not repond with pong!")
         return
+    # when updating, presumably the ISR shuts off during flash writting, causes the tubes flash a bit
+    #   so better to turn the display off when updating
+    u.setTimeMode('off')
     u.setUartBaud(921600)
     stat = u.update(args.file)
     if not stat:

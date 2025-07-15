@@ -47,6 +47,7 @@ ParserHandler serialParser;
 ParserHandler networkParser;
 
 dispMode_e dispMode;
+timeFormat_e timeFormat;
 
 TimerHandle_t updateTimeT;
 TimerHandle_t updateALedT;
@@ -114,6 +115,7 @@ void setup() {
     updateALedT = xTimerCreate("updateALedT", pdMS_TO_TICKS(50), true, NULL, updateLED);
     xTimerStart(updateALedT, 0);
 
+    timeFormat = TIME_FORMAT_24HR;
     setDisplayMode(DISPLAY_MODE_TIME);
 
     DEBUG("postBegin");
@@ -166,19 +168,6 @@ void WiFiEvent(WiFiEvent_t event) {
 }
 
 void loop() {
-    // static unsigned long lastT = 0;
-    // static unsigned long lastT2 = 0;
-    // static CHSV toSet = CHSV(0, 255, 128);
-    // static CRGB toSetRgb;
-  // put your main code here, to run repeatedly:
-    // for(int i=0;i<10;i++){
-    //     digitalWrite(IO_SHIFT_LDR, LOW);
-    //     // vspi.transfer(1 << i);
-    //     vspi.transfer(numberToSeg[i]);
-    //     digitalWrite(IO_SHIFT_LDR, HIGH);
-    //     delay(250);
-    // }
-
     // handle new client connections
     if (networkServer.hasClient()) {
         if(networkClient.connected()){
@@ -199,24 +188,6 @@ void loop() {
     while(commsSerial.available()){
         serialParser.parse(commsSerial.read());
     }
-
-    // todo: handle in thread?
-    // if(millis() - lastT2 > 500){
-    //     lastT2 = millis();
-    //     struct tm t;
-    //     if(getLocalTime(&t, 100)){
-    //         currN = t.tm_min + (t.tm_hour*100);
-    //     }
-    // }
-
-    // todo: handle in thread?
-    // if(millis() - lastT > 40){
-    //     lastT = millis();
-    //     toSet.h += 1;
-    //     hsv2rgb_spectrum(toSet, toSetRgb);
-    //     fill_solid(leds, NUM_ADDR_LEDS, toSetRgb);
-    //     FastLED.show();
-    // }
 }
 
 // handles the transition in the display mode
@@ -224,9 +195,9 @@ void setDisplayMode(dispMode_e newMode){
     dispMode = newMode;
     
     if(newMode == DISPLAY_MODE_TIME){
-        // xTimerStart(updateTimeT, 0);
+        xTimerStart(updateTimeT, 0);
     } else {
-        // xTimerStop(updateTimeT, 0);
+        xTimerStop(updateTimeT, 0);
     }
 
     if(newMode == DISPLAY_MODE_OFF){
@@ -239,12 +210,33 @@ void setDisplayMode(dispMode_e newMode){
 void updateTimeCallback(TimerHandle_t xTimer){
     uint currTimeN;
     time_t now;
+    float tmp;
 
     // basically doing the same as getLocalTime in `esp32-hal-time.c`, but no timeout. if it fails it fails
     time(&now);
     localtime_r(&now, &currTime);
     if (currTime.tm_year > (2016 - 1900)) {
-        currTimeN = currTime.tm_min + (currTime.tm_hour*100);
+        switch(timeFormat){
+            case TIME_FORMAT_24HR:
+                currTimeN = currTime.tm_min + (currTime.tm_hour*100);
+                break;
+            case TIME_FORMAT_12HR:
+                currTimeN = currTime.tm_min + ((currTime.tm_hour % 12)*100);
+                break;
+            case TIME_FORMAT_METRIC:
+                // get the current time as a proportion of the day
+                tmp = currTime.tm_sec + (60.0*(float)currTime.tm_min) + (3600.0*(float)currTime.tm_hour);
+                tmp /= 86400;
+                // now start dividing and filling the hours and minutes spot
+                tmp *= 10;
+                currTimeN = (uint)floor(tmp);
+                tmp -= currTimeN;
+                currTimeN *= 100;       // convert the hours to the 100's decimal place
+                tmp *= 100;
+                currTimeN += (uint)floor(tmp);
+                break;
+        }
+        
         displayNumber(currTimeN);
     }
 }
@@ -265,14 +257,16 @@ void displayNumber(uint n){
     uint toS;
 
     for(int i=0;i<N_DISPLAYS;i++){
-        if(n < power10[i]){
-            segmentsEnabled[i] = 0;
+        // only remove the zeros if we are displaying a number (todo: maybe just exclude time from this)
+        if(dispMode == DISPLAY_MODE_NUMB){
+            if(n < power10[i]){
+                segmentsEnabled[i] = 0;
+                continue;
+            }
         }
-        else {
-            toS = n / power10[i];
-            toS %= 10;
-            segmentsEnabled[i] = numberToSeg[toS];
-        }
+        toS = n / power10[i];
+        toS %= 10;
+        segmentsEnabled[i] = numberToSeg[toS];
     }
 
     currDisplayedN = n;      // update global variable

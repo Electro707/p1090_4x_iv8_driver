@@ -41,12 +41,22 @@ This firmware has the following run-time modes for the display:
 
 On startup the firmware defaults to "time"
 
+=== Time Format
+
+When displaying time, this firmware can present that in the following modes:
+
+* *24hr*: Displays the time as HH:MM in 24-hour format
+* *12hr*: Displays the time as HH:MM in 12-hour format. No AM/PM indicator can be shown in this mode
+* *metric*: Displays the time as HH:MM in metric format. See https://metric-time.com/ for more information on this format
+
 === NVM
+NOTE: This is not implemented yet
 
 This firmware stores some parameters in non-volatile memory (nvm). The esp32-arduino's `EEPROM` is used, handling data storage and integrity.
 The following table describes what is stored.
 
-[cols="1,1,1,3"]
+// [cols="1,1,1,3"]
+[%autowidth]
 |===
 |Offset|Length|Type|Description
 
@@ -66,6 +76,8 @@ The following table describes what is stored.
 |WIFI password to connect to
 
 |===
+
+
 
 === Communication
 This firmware can be communicated with over the following interfaces:
@@ -122,9 +134,13 @@ The following table list all commands supported.
 |pong!
 |ping/pong. Useful for checking if the firmware is functional
 
-.3+|set
+.4+|set
 |mode
-|[str], mode
+a|[str], mode, either:
+
+- 'off'
+- 'numb'
+- 'time'
 |
 |Set the new display mode, which is the same string as described in <<Display Modes>>
 
@@ -143,12 +159,21 @@ The following table list all commands supported.
 // |
 // |
 
+|timeFormat
+a|[str], The new time format, either:
+
+- '24hr'
+- '12hr'
+- 'metric'
+|
+|Sets the displayed time format, which is the same string as described in <<Time Format>>
+
 |uartBaud
 |[int], The new baud rate
 |
 |Switches the main UART baud rate
 
-.5+|get
+.6+|get
 |version
 |
 |The firmware version
@@ -157,13 +182,12 @@ The following table list all commands supported.
 |mode
 |
 |The current mode
-|
+|See <<Display Modes>>
 
 |n
 |
 |The current displayed number
 |
-
 
 // |timezone
 // |
@@ -174,6 +198,12 @@ The following table list all commands supported.
 |
 |The current time, in the set timezone
 |
+
+|timeFormat
+|
+|The time format
+|See <<Time Format>>
+
 
 |ip
 |
