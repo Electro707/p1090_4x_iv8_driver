@@ -15,6 +15,7 @@ This project is a driver for 4xIV-8 VFD Tubes.
     - C1094: Bottom Enclosure
     - C1095: Top Enclosure
     - C1096: Button Press Extender
+    - C1097: Light Pipe for LED
 - `release`: Latest exported build files, includes Schematic, BOM, Gerber, and STL files
 
 # Firmware Doc
