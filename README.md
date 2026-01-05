@@ -21,16 +21,17 @@ This project is a driver for 4xIV-8 VFD Tubes.
 # Firmware Doc
 
 The document for the firmware can be found over at [https://electro707.com/documentation/Projects/F1093_docs/](https://electro707.com/documentation/Projects/F1093_docs/)
-    
+
+The document also describes the requirements for building the Firmware through the Arduino IDE.
 
 # Known Issues
-- The op-amp chosen cannot drive all 4 filaments of the IV-8 VFD tubes
-    - ^ Temporary fix is to connect the side of the potentiometer going to the op-amp to 5v directly. The op-amp then (coincidentally) current-limits the output when the pot is at it's minimum position, enough to light up the tubes.
-    - Long-term fix is to spec out a different op-amp, which I will test
+> [!IMPORTANT]
+> Please read the file linked below before attempting to build this hardware.
+
+Known issues, and any workarounds, are documented in [ERRATA.md](ERRATA.md).
 
 # todo:
 - Buy or 3D print light-pipes for better LED-to-IV8 conductance
-- Test out better op-amp for filament driver
 
 # License
 This project is licensed under [GPLv3](LICENSE.md)**
