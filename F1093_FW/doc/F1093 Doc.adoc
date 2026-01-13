@@ -27,6 +27,7 @@ The following tools and libraries are used to build this firmware:
 
 ==== Arduino Board Setup
 The board setup (in the Tools tab) is setup as follows:
+
 * Board: "ESP32 Dev Module"
 * CPU Frequency: "240Mhz (WiFi/BT)"
 * Core Debug Level: "None"
@@ -161,7 +162,7 @@ The following table list all commands supported.
 |pong!
 |ping/pong. Useful for checking if the firmware is functional
 
-.4+|set
+.6+|set
 |mode
 a|[str], mode, either:
 
@@ -201,7 +202,7 @@ a|[str], The new time format, either:
 |Switches the main UART baud rate
 
 |ledColor
-|[str], The new LED color mode, either:
+a|[str], The new LED color mode, either:
 
 - 'manual'
 - 'rainbow'
@@ -210,7 +211,7 @@ a|[str], The new time format, either:
 |Sets the LED color mode
 
 |ledBlinkMode
-|[str], The new LED blink mode, either:
+a|[str], The new LED blink mode, either:
 
 - 'off'
 - 'sec'
