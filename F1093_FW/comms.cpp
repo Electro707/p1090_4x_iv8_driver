@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <string.h>
 #include <WiFi.h>
+#include <FastLED.h>
 #include "common.h"
 #include "comms.h"
 
@@ -241,6 +242,43 @@ void ParserHandler::subcommandSet(char *token){
             return;
         }
         displayNumber(tmpLong);
+        txAck();
+    }
+    else if(!strcmp(token, "ledColorMode")){
+        MACRO_GET_NEXTARG("missing arg1");
+        if(!strcmp(token, "off")){
+            // set to manual mode while updating the color to be rendered next to black
+            leds.ledColorMode = LED_MODE_MANUAL;
+            // fill_solid(leds.leds, NUM_ADDR_LEDS, CRGB::Black);
+        }
+        else if(!strcmp(token, "manual")){
+            leds.ledColorMode = LED_MODE_MANUAL;
+        }
+        else if(!strcmp(token, "rainbow")){
+            leds.ledColorMode = LED_MODE_RAINBOW;
+        }
+        else if(!strcmp(token, "timeHue")){
+            leds.ledColorMode = LED_MODE_TIME_HUE;
+        }
+        else{
+            txNack("invalid mode");
+            return;
+        }
+        txAck();
+    }
+    else if(!strcmp(token, "ledBlinkMode")){
+        MACRO_GET_NEXTARG("missing arg1");
+        if(!strcmp(token, "off")){
+            leds.ledBlinkMode = LED_BLINK_MODE_OFF;
+        }
+        else if(!strcmp(token, "sec")){
+            leds.ledBlinkMode = LED_BLINK_MODE_SEC;
+        }
+        else{
+            txNack("invalid mode");
+            return;
+        }
+        txAck();
     }
     else{
         txNack("invalid sub-command");

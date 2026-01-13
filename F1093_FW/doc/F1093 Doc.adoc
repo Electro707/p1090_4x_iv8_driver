@@ -3,13 +3,10 @@ rev 1-dev
 
 :sectnums:
 
-== Purpose
-The purpose of this document is to describe the F1093 firmware.
-
 == Development Information
 
-=== Toolchain
-The following tools and libraries are used to build this library:
+=== Setup
+The following tools and libraries are used to build this firmware:
 
 [%autowidth]
 |===
@@ -21,11 +18,43 @@ The following tools and libraries are used to build this library:
 
 |Arduino Board
 |esp32 by Espressif
-|3.2.0
+|3.3.5
+
+|Arduino Library
+|fastLED
+|3.10.3
 |===
 
-=== Target
-This firmware is only designed to be ran on an ESP32 on an E1041 PCBA.
+==== Arduino Board Setup
+The board setup (in the Tools tab) is setup as follows:
+* Board: "ESP32 Dev Module"
+* CPU Frequency: "240Mhz (WiFi/BT)"
+* Core Debug Level: "None"
+* Erase All Flash Before Sketch Upload: "Disabled"
+* Events Run On: "Core 1"
+* Flash Frequency: "40Mhz"
+* Flash Mode: "QIO"
+* Flash Size: "4MB (32Mb)"
+* JTAG Adapter: "Disabled"
+* Arduino Runs On: "Core 1"
+* Partition Scheme: "Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)"
+* PSRAM: "Disabled"
+* Upload Speed: "921600"
+* Zigbee Mode: "Disabled"
+
+
+=== Required File
+To build this firmware, a file titled `wifiDefault.h` must be created in the firmware's root path. The file must contain the following:
+
+```
+#ifndef WIFI_DEFAULT_H
+#define WIFI_DEFAULT_H
+
+#define DEFAULT_WIFI_SSID       "ENTER-SSID"
+#define DEFAULT_WIFI_PASSWORD   "ENTER_PASS"
+
+#endif
+```
 
 == Functional Description
 The F1093 firmware controls up 4x IV-8 Vacuum Fluorescent displays.
@@ -50,8 +79,6 @@ When displaying time, this firmware can present that in the following modes:
 * *metric*: Displays the time as HH:MM in metric format. See https://metric-time.com/ for more information on this format
 
 === NVM
-NOTE: This is not implemented yet
-
 This firmware stores some parameters in non-volatile memory (nvm). The esp32-arduino's `EEPROM` is used, handling data storage and integrity.
 The following table describes what is stored.
 
@@ -172,6 +199,23 @@ a|[str], The new time format, either:
 |[int], The new baud rate
 |
 |Switches the main UART baud rate
+
+|ledColor
+|[str], The new LED color mode, either:
+
+- 'manual'
+- 'rainbow'
+- 'timeHue'
+|
+|Sets the LED color mode
+
+|ledBlinkMode
+|[str], The new LED blink mode, either:
+
+- 'off'
+- 'sec'
+|
+|Sets the LED blink mode
 
 .6+|get
 |version

@@ -24,6 +24,18 @@ The document for the firmware can be found over at [https://electro707.com/docum
 
 The document also describes the requirements for building the Firmware through the Arduino IDE.
 
+To build the firmware, you will need to make a file `wifiDefault.h` in the firmrware's folder with the following WIFI credentials
+
+```c
+#ifndef WIFI_DEFAULT_H
+#define WIFI_DEFAULT_H
+
+#define DEFAULT_WIFI_SSID       "ENTER-SSID"
+#define DEFAULT_WIFI_PASSWORD   "ENTER_PASS"
+
+#endif
+```
+
 # Known Issues
 > [!IMPORTANT]
 > Please read the file linked below before attempting to build this hardware.

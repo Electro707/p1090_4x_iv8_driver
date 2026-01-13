@@ -1,3 +1,4 @@
+#!/bin/python
 """
 A python script to update the F1093 firmware with a given binary file exported from Arduino
 """
@@ -31,6 +32,9 @@ class Update:
 
     def setTimeMode(self, newMode: int):
         self._writeSerAck(f'set mode {newMode:s}')
+
+    def setLedColorMode(self, newMode: str):
+        self._writeSerAck(f'set ledColor {newMode:s}')
 
     def reset(self):
         self._writeSer('reboot')
@@ -113,6 +117,7 @@ def main():
     # when updating, presumably the ISR shuts off during flash writting, causes the tubes flash a bit
     #   so better to turn the display off when updating
     u.setTimeMode('off')
+    u.setLedColorMode('off')
     u.setUartBaud(921600)
     stat = u.update(args.file)
     if not stat:

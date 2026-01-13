@@ -1,10 +1,13 @@
-#include <SPI.h>
+// #include <SPI.h>
 #include <FastLED.h>
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <HardwareSerial.h>
 #include <time.h>
 #include "common.h"
+#include "soc/spi_struct.h"
+#include "soc/gpio_struct.h"
+#include "soc/dport_reg.h"
 /**
  * The file below must be created, which defines DEFAULT_WIFI_SSID and DEFAULT_WIFI_PASSWORD
  */
@@ -23,19 +26,21 @@ const uint8_t ioVfdEn[N_DISPLAYS] = {19, 21, 22, 23};
 // a look-up between a number to be display and the 7-segment settings
 const uint8_t numberToSeg[10] = {0xb7, 0x14, 0x73, 0x76, 0xd4, 0xe6, 0xe7, 0x34, 0xf7, 0xf6};
 
-const int spiClk = 1000000;  // 1 MHz
-SPIClass vspi = SPIClass(VSPI);
+// const int spiClk = 1000000;  // 1 MHz
+// SPIClass vspi = SPIClass(VSPI);
 
-hw_timer_t *mainTimer = timerBegin(1000000);
+hw_timer_t *mainTimer;
 
 uint currDisplayedN = 0;     // the current number being displayed. Only to be updated in displayNumber
 uint8_t segmentsEnabled[N_DISPLAYS];    // what segments are enabled/on per display
+
+portMUX_TYPE segEnMux = portMUX_INITIALIZER_UNLOCKED;
 
 struct tm currTime;
 
 EEPROMClass nvm("main");
 
-CRGB leds[NUM_ADDR_LEDS];
+struct led_s leds;
 
 NetworkServer networkServer(23);
 NetworkClient networkClient;        // for now only allow one client
@@ -49,8 +54,37 @@ ParserHandler networkParser;
 dispMode_e dispMode;
 timeFormat_e timeFormat;
 
-TimerHandle_t updateTimeT;
 TimerHandle_t updateALedT;
+TimerHandle_t updateTimeT;
+
+/**
+ * This function, called from an interrupt, updates one display at a time every 2Khz
+ */
+void IRAM_ATTR segmentInterrupt(void){
+    static uint32_t currDisp = 0;        // a counter for the current display enabled
+    // turn off last display
+    digitalWrite(ioVfdEn[currDisp], LOW);
+    
+    // transistion to next display
+    currDisp++;
+    currDisp &= 0x03;  // equivalent to currDisp %= 4, boolean math magic
+
+    digitalWrite(IO_SHIFT_LDR, LOW);
+    // vspi.transfer(segmentsEnabled[currDisp]);
+
+    SPI3.mosi_dlen.usr_mosi_dbitlen = 7;
+    SPI3.miso_dlen.usr_miso_dbitlen = 7;
+
+    portENTER_CRITICAL_ISR(&segEnMux);
+    SPI3.data_buf[0] = segmentsEnabled[currDisp];
+    portEXIT_CRITICAL_ISR(&segEnMux);
+
+    SPI3.cmd.usr = 1;
+    while(SPI3.cmd.usr != 0);
+
+    digitalWrite(IO_SHIFT_LDR, HIGH);
+    digitalWrite(ioVfdEn[currDisp], HIGH);
+}
 
 void setup() {
     Serial.begin(115200);
@@ -58,13 +92,15 @@ void setup() {
     //       increasing buffer size for high speed firmware updates
     commsSerial.setRxBufferSize(MAX_FW_BUFFER);
     commsSerial.begin(115200, SERIAL_8N1, COMMS_UART_RX, COMMS_UART_TX);
+    DEBUG("initializing");
 
     // IO init
     pinMode(IO_HIV_EN, OUTPUT);
     pinMode(IO_SHIFT_OE, OUTPUT);
     pinMode(IO_SHIFT_LDR, OUTPUT);
     pinMode(IO_SHIFT_RST, OUTPUT);
-    for(int i=0;i<4;i++){
+    for(int i=0;i<N_DISPLAYS;i++){
+        digitalWrite(ioVfdEn[i], LOW);
         pinMode(ioVfdEn[i], OUTPUT);
     }
     // ensure this is HIGH on startup
@@ -84,38 +120,69 @@ void setup() {
         strcpy(wifiPassword, DEFAULT_WIFI_PASSWORD);
     }
 
-    memset(segmentsEnabled, 0, sizeof(segmentsEnabled));
+    // set variables
+    memset(segmentsEnabled, 0x40, sizeof(segmentsEnabled));
+    leds.ledBlinkMode = LED_BLINK_MODE_OFF;
+    leds.ledColorMode = LED_MODE_RAINBOW;
+    timeFormat = TIME_FORMAT_24HR;
+    
+    // vspi.begin(IO_SHIFT_CLK, -1, IO_SHIFT_DAT, -1);
+    // vspi.setHwCs(false);
+    // vspi.beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
 
-    vspi.begin(IO_SHIFT_CLK, -1, IO_SHIFT_DAT, -1);
-    vspi.setHwCs(false);
-    vspi.beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
+    GPIO.enable |= (1 << IO_SHIFT_CLK) | (1 << IO_SHIFT_DAT);
+    GPIO.func_out_sel_cfg[IO_SHIFT_DAT].val = 65 | (1 << 10);
+    GPIO.func_out_sel_cfg[IO_SHIFT_CLK].val = 63 | (1 << 10);
+    REG_WRITE(IO_MUX_GPIO25_REG, 0x2801);
+    REG_WRITE(IO_MUX_GPIO26_REG, 0x2801);
 
+    DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_SPI3_CLK_EN);
+    SPI3.pin.val = 0b111;
+    SPI3.pin.ck_idle_edge = 1;
+    SPI3.user.usr_command = 0;
+    SPI3.user.usr_mosi = 1;
+    SPI3.user.doutdin = 1;
+
+    SPI3.ctrl2.miso_delay_mode = 2;
+    SPI3.clock.clkdiv_pre = 59;
+    SPI3.clock.clkcnt_n = 3;
+    SPI3.clock.clkcnt_h = 1;
+    SPI3.clock.clkcnt_l = 3;
+    SPI3.clock.clk_equ_sysclk = 0;
+
+    // reset shift register
     digitalWrite(IO_SHIFT_RST, LOW);
     digitalWrite(IO_SHIFT_LDR, LOW);
     delay(10);
     digitalWrite(IO_SHIFT_RST, HIGH);
     digitalWrite(IO_SHIFT_LDR, HIGH);
     digitalWrite(IO_SHIFT_OE, LOW);
-
+    // enable high voltage boost converter
     digitalWrite(IO_HIV_EN, HIGH);
 
+    // setup wifi
     WiFi.setHostname(NETWORK_HOSTNAME);
     WiFi.onEvent(WiFiEvent);
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.begin(wifiSsid, wifiPassword);
 
+    // setup LEDs
+    FastLED.addLeds<WS2812, IO_ADDR_LED>(leds.leds, NUM_ADDR_LEDS);
+    
+    // setup comms
+    serialParser.setPrintClass(&commsSerial);
+    // network setup happens on connection
+
+    // setup tasks
+    // because the updating of the segments is critical, we use an old fashioned interrupt    
+    mainTimer = timerBegin(1000000);
     timerAttachInterrupt(mainTimer, &segmentInterrupt);
     timerAlarm(mainTimer, 500, true, 0);
-
-    FastLED.addLeds<WS2812, IO_ADDR_LED>(leds, NUM_ADDR_LEDS);
-
-    serialParser.setPrintClass(&commsSerial);
-
-    updateTimeT = xTimerCreate("updateTimeT", pdMS_TO_TICKS(500), true, NULL, updateTimeCallback);
+    // for the rest of the stuff, they can run with a decent amount of jitter/deviation
+    updateTimeT = xTimerCreate("updateTimeT", pdMS_TO_TICKS(250), true, NULL, updateTimeCallback);
     updateALedT = xTimerCreate("updateALedT", pdMS_TO_TICKS(50), true, NULL, updateLED);
     xTimerStart(updateALedT, 0);
 
-    timeFormat = TIME_FORMAT_24HR;
     setDisplayMode(DISPLAY_MODE_TIME);
 
     DEBUG("postBegin");
@@ -201,9 +268,11 @@ void setDisplayMode(dispMode_e newMode){
     }
 
     if(newMode == DISPLAY_MODE_OFF){
+        portENTER_CRITICAL(&segEnMux);
         for(int i=0;i<N_DISPLAYS;i++){
             segmentsEnabled[i] = 0;
         }
+        portEXIT_CRITICAL(&segEnMux);
     }
 }
 
@@ -243,11 +312,39 @@ void updateTimeCallback(TimerHandle_t xTimer){
 
 void updateLED(TimerHandle_t xTimer){
     static CHSV toSet = CHSV(0, 255, 128);
-    static CRGB toSetRgb;
+    CRGB toSetRgb;
+    float tmp;
 
-    toSet.h += 1;
-    hsv2rgb_spectrum(toSet, toSetRgb);
-    fill_solid(leds, NUM_ADDR_LEDS, toSetRgb);
+    switch(leds.ledColorMode){
+        case LED_MODE_RAINBOW:
+            toSet.h += 1;
+            hsv2rgb_spectrum(toSet, toSetRgb);
+            fill_solid(leds.leds, NUM_ADDR_LEDS, toSetRgb);
+            break;
+        case LED_MODE_TIME_HUE:
+            tmp = currTime.tm_sec;
+            tmp /= 60;
+            tmp *= 256;
+            toSet.h = (uint8_t)tmp;
+            hsv2rgb_spectrum(toSet, toSetRgb);
+            fill_solid(leds.leds, NUM_ADDR_LEDS, toSetRgb);
+            break;
+        default:
+            break;
+    }
+
+    switch(leds.ledBlinkMode){
+        case LED_BLINK_MODE_OFF:
+            // intentional no break
+        case LED_BLINK_MODE_SEC:
+            // turn the whole LED set off once every other odd second
+            if((currTime.tm_sec % 2) == 0){
+                fill_solid(leds.leds, NUM_ADDR_LEDS, CRGB::Black);
+            }
+            break;
+        default:
+            break;
+    }
     FastLED.show();
 }
 
@@ -256,6 +353,7 @@ void displayNumber(uint n){
     const uint power10[N_DISPLAYS] = {1, 10, 100, 1000};
     uint toS;
 
+    portENTER_CRITICAL(&segEnMux);
     for(int i=0;i<N_DISPLAYS;i++){
         // only remove the zeros if we are displaying a number (todo: maybe just exclude time from this)
         if(dispMode == DISPLAY_MODE_NUMB){
@@ -268,6 +366,7 @@ void displayNumber(uint n){
         toS %= 10;
         segmentsEnabled[i] = numberToSeg[toS];
     }
+    portEXIT_CRITICAL(&segEnMux);
 
     currDisplayedN = n;      // update global variable
 }
@@ -277,24 +376,4 @@ void saveNvm(void){
     nvm.writeBytes(1, wifiSsid, 32);
     nvm.writeBytes(1, wifiPassword, 32);
     nvm.commit();
-}
-
-
-/**
- * This function, called from an interrupt, updates one display at a time every 2Khz
- */
-void segmentInterrupt(void){
-    static uint8_t currDisp = 0;        // a counter for the current display enabled
-
-    // turn off last display
-    digitalWrite(ioVfdEn[currDisp], LOW);
-    
-    // transistion to next display
-    currDisp++;
-    currDisp &= 0x03;  // equivalent to currDisp %= 4, boolean math magic
-
-    digitalWrite(IO_SHIFT_LDR, LOW);
-    vspi.transfer(segmentsEnabled[currDisp]);
-    digitalWrite(IO_SHIFT_LDR, HIGH);
-    digitalWrite(ioVfdEn[currDisp], HIGH);
 }
