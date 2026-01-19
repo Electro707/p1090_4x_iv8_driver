@@ -1,3 +1,9 @@
+// must come before <FastLED.h>
+// due to how the RMI interrupts, the SPI backup seems to have less flicker as it uses DMA
+#define FASTLED_ALLOW_INTERRUPTS 0
+#define FASTLED_ESP32_USE_CLOCKLESS_SPI
+#define FASTLED_ESP32_SPI_BUS   HSPI        // use a different SPI than the shift register's VSPI
+
 // #include <SPI.h>
 #include <FastLED.h>
 #include <WiFi.h>
@@ -26,15 +32,13 @@ const uint8_t ioVfdEn[N_DISPLAYS] = {19, 21, 22, 23};
 // a look-up between a number to be display and the 7-segment settings
 const uint8_t numberToSeg[10] = {0xb7, 0x14, 0x73, 0x76, 0xd4, 0xe6, 0xe7, 0x34, 0xf7, 0xf6};
 
-// const int spiClk = 1000000;  // 1 MHz
-// SPIClass vspi = SPIClass(VSPI);
-
 hw_timer_t *mainTimer;
 
 uint currDisplayedN = 0;     // the current number being displayed. Only to be updated in displayNumber
 uint8_t segmentsEnabled[N_DISPLAYS];    // what segments are enabled/on per display
 
 portMUX_TYPE segEnMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE ledSpinLock = portMUX_INITIALIZER_UNLOCKED;
 
 struct tm currTime;
 
@@ -62,6 +66,10 @@ TimerHandle_t updateTimeT;
  */
 void IRAM_ATTR segmentInterrupt(void){
     static uint32_t currDisp = 0;        // a counter for the current display enabled
+
+    // if we are running ws2812b updates, just bail for this cycle
+
+
     // turn off last display
     digitalWrite(ioVfdEn[currDisp], LOW);
     
@@ -122,8 +130,8 @@ void setup() {
 
     // set variables
     memset(segmentsEnabled, 0x40, sizeof(segmentsEnabled));
-    leds.ledBlinkMode = LED_BLINK_MODE_OFF;
-    leds.ledColorMode = LED_MODE_RAINBOW;
+    leds.ledBlinkMode = LED_BLINK_MODE_SEC;
+    leds.ledColorMode = LED_MODE_TIME_HUE;
     timeFormat = TIME_FORMAT_24HR;
     
     // vspi.begin(IO_SHIFT_CLK, -1, IO_SHIFT_DAT, -1);
@@ -322,7 +330,7 @@ void updateLED(TimerHandle_t xTimer){
             fill_solid(leds.leds, NUM_ADDR_LEDS, toSetRgb);
             break;
         case LED_MODE_TIME_HUE:
-            tmp = currTime.tm_sec;
+            tmp = (float)currTime.tm_sec;
             tmp /= 60;
             tmp *= 256;
             toSet.h = (uint8_t)tmp;
@@ -335,7 +343,7 @@ void updateLED(TimerHandle_t xTimer){
 
     switch(leds.ledBlinkMode){
         case LED_BLINK_MODE_OFF:
-            // intentional no break
+            break;
         case LED_BLINK_MODE_SEC:
             // turn the whole LED set off once every other odd second
             if((currTime.tm_sec % 2) == 0){
@@ -345,7 +353,10 @@ void updateLED(TimerHandle_t xTimer){
         default:
             break;
     }
+
+    taskENTER_CRITICAL(&ledSpinLock);
     FastLED.show();
+    taskEXIT_CRITICAL(&ledSpinLock);
 }
 
 // displays a new number
